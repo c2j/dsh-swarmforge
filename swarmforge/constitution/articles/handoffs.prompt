@@ -1,0 +1,73 @@
+# Handoff Rules
+
+## Sending Handoffs
+- Prepare the handoff fields (`type`, `to`, `priority`, `task`, and `commit` or `message`) and call the `swarm_handoff` tool with those fields as arguments — no draft file is needed.
+- Use only these message types:
+  - `git_handoff`
+  - `note`
+- Do not send `note` handoffs unless the user, role prompt, or constitution
+  explicitly directs you to send one.
+- When blocked by ambiguity, contradiction, or test/specification conflict,
+  ask the operator by calling the `swarm_clarify` tool with your question.
+  Do not ask ad hoc in your session; use the Swarm panel in the dsh Web UI
+  (via `swarm_clarify`). Do not send a `note` handoff unless one of
+  the explicit authorities above directed that note.
+- For `git_handoff`, commit first, then call the tool. The `swarm_handoff` tool fills `commit` and `artifacts` from the sender worktree HEAD; do not type a SHA. The tool infers the role from `roles.tsv` and this worktree.
+- If you are the master agent on a pack that includes specifier, queue `git_handoff` when the work is ready. Do not ask for approval in your session; the operator reviews via the Attention queue in the Swarm panel of the dsh Web UI.
+- Do not add extra git headers (`coverage`, CRAP, evidence). If evidence is needed, the tool writes it.
+- For `git_handoff`, provide:
+
+```text
+type: git_handoff
+to: <role>[,<role>...]
+priority: NN
+task: <short-stable-task-name>
+```
+
+- When your role is an intermediate step in the pack pipeline, always forward
+  a `git_handoff` to the next role in the chain after completing the inbound
+  task, regardless of what changed. Formatting-only, manifest-only, audit-only,
+  generated metadata, and other non-functional churn still require a forward
+  down the chain.
+- When your role sends the end-of-chain handoff to multiple recipients, those
+  recipients merge only. They do not forward that handoff further. Only this
+  terminal broadcast is merge-only without re-forwarding. Do not invent
+  `git merge`; the `ready_for_next` tool runs `merge_and_process.sh`.
+- Preserve the received task name when forwarding work for the same task.
+- The master agent uses the existing New Task / board card name as `task:`. Do not invent a name.
+- For `note`, provide:
+
+```text
+type: note
+to: <role>[,<role>...]
+priority: NN
+message: <one line, max 80 chars>
+```
+
+- If the `swarm_handoff` tool reports validation errors, repair the fields and retry the call.
+- Do not write long handoff bodies. The tool generates the delivered payload.
+- Do not attempt to notify or wake other roles directly; only the `swarm_handoff` tool triggers delivery and wake-up.
+- Do not hand-edit, merge, stage, or commit handoff runtime state.
+
+## Receiving Handoffs
+- When notified, call the `ready_for_next` tool. The tool infers the role from `roles.tsv` and this worktree.
+- The `ready_for_next` tool dispatches to the task or batch behavior configured for
+  your role. For `git_handoff` it merges the inbound commit
+  (`merge_and_process.sh <sender> <commit>`).
+- If it returns `NO_TASK`, stop waiting for work.
+- If it returns `TASK: <path>`, treat the returned `PAYLOAD` as the task.
+- If it returns `TASK_NAME: <name>`, use that as the stable task name for any
+  work you forward from that task.
+- If it returns `BATCH: <path>`, treat each returned `BATCH_ITEM` as part of the
+  current batch in tool-delivered order.
+- Use only the task information returned by the tools.
+- If a followup wake-up arrives while already working on a task, ignore it.
+- When the task or batch is fully complete, call the `done_with_current` tool.
+- `note` handoffs are tasks too; after reading or acting on a note, call
+  the `done_with_current` tool before accepting any other handoff.
+- If the `done_with_current` tool returns `TASK: <path>`, treat the returned
+  `PAYLOAD` as the next task.
+- If the `done_with_current` tool returns `BATCH: <path>`, treat each returned
+  `BATCH_ITEM` as part of the next batch in tool-delivered order.
+- If a done call returns `NO_TASK`, stop waiting for work.
+- On restart, call the `ready_for_next` tool and follow its result.

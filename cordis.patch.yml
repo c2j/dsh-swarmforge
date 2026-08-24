@@ -1,0 +1,12 @@
+# One row mounts both faces of this package: the host half (ctx.swarmforge
+# service + tools + projection + /swarm command, from `apply` in src/index.ts)
+# and, via this package.json's own `dsh.client` field ("./client" export,
+# platform "web"), the browser roster the modules node half scans into
+# `window.__DSH_BOOT__` — same pattern as web-app's `dsh.client` rows for
+# separately-packaged client plugins (e.g. `ui-trajectory`), except here the
+# host and client manifests live in one package, so one row serves both; a
+# second row for the same package would double-load its host half.
+- insert:
+    - id: swarmforge-host
+      name: dsh-swarmforge
+      config: {}
