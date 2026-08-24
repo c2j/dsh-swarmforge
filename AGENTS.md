@@ -2,7 +2,7 @@
 
 ## 仓库现状（2026-08-24 核实）
 
-- **M0–M3 全部完成**：协议层/git 层/服务层（含审批门禁/batch/clarify/board）/cordis 接线（锚会话+per-role model）/Swarm Web 面板（Queue/Board/Boxes 三视图 + projection v2 + /swarm 命令）全部落地（185 个测试全绿）；模型驱动的 e2e 冒烟尚待有凭据的手工运行（见 `.sisyphus/plans/m0-findings.md` §7.3、m1/m2/m3-findings 的 manual checklist）。
+- **M0–M3 全部完成**：协议层/git 层/服务层（含审批门禁/batch/clarify/board）/cordis 接线（锚会话+per-role model）/Swarm Web 面板（Queue/Board/Boxes 三视图 + projection v2 + /swarm 命令）全部落地（185 个测试全绿）；模型驱动 e2e 已跑通（swarm_start → specifier 出站挂起 → `/swarm approve` → coder `ready_for_next` 跨 worktree merge，三项全 PASS，见 `.sisyphus/plans/e2e-findings.md`）。
 - 单包 pnpm + TypeScript（strict、ESM、Node >=22）+ Vitest；dsh 类型经 npm `@deepseek-ai/*@0.1.1-rc.2`（peer/dev 双声明，运行时由 dsh profile 提供）；client 半经 tsdown 构建（`pnpm build:client` → dist/client.js）。
 - Git：分支 `main`（跟踪 `origin/main`），远程 `origin` = `git@github.com:c2j/dsh-swarmforge.git`（SSH）。
 - 当前无 lint 工具/命令与 CI 配置；禁止编造不存在的命令。
@@ -103,7 +103,7 @@
 
 - 单元测试不需要外部服务或环境变量；git/service 层测试使用 tmpdir 临时仓库并在 afterAll/finally 清理（AGENTS 铁律）。
 - dsh 集成冒烟需要本地 `deepseek-harness` checkout；全局 `dsh` 当前未安装，可在该仓库运行 `pnpm dsh ...`；必须使用临时 `DSH_HOME`，禁止污染真实用户 profile。
-- 模型驱动的 e2e（swarm_start → 角色激活 → wake → ready_for_next）需要带模型凭据的 profile，尚未运行。
+- 模型驱动的 e2e（swarm_start → 角色激活 → wake → ready_for_next）已在临时 `DSH_HOME` 跑通；证据摘要见 `.sisyphus/plans/e2e-findings.md`（session 日志目录已清理，关键 SHA/文件名内联于该文档）。
 
 ## 待补全
 
