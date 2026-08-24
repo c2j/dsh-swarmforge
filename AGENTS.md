@@ -74,7 +74,8 @@
 
 ## 命令与目录（M0 完成）
 
-- 安装依赖：`pnpm install --frozen-lockfile`（首次生成/有意更新锁文件时用 `pnpm install`）
+- 安装依赖：`pnpm install --frozen-lockfile`（首次生成/有意更新锁文件时用 `pnpm install`；`prepare` 会跑 `build` + `build:client`，供 `dsh plugin add github:c2j/dsh-swarmforge` 在安装时产出 `dist/`）
+- 从 GitHub 装进 dsh profile：`pnpm dsh plugin --profile web add github:c2j/dsh-swarmforge`（在 deepseek-harness 仓库里跑；pnpm ≥10 若拦住 prepare，按 CLI 提示把包名写入该 profile 的 `allowBuilds` 后再跑一次）
 - 构建：`pnpm build`（`tsc -p tsconfig.build.json`，输出至 `dist/`）
 - 类型检查：`pnpm typecheck`（`tsc --noEmit`）
 - 全部测试：`pnpm test`（`vitest run`）
