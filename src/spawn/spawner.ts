@@ -52,6 +52,7 @@ interface ResumeSpec {
 export interface AgentClient<A extends ParentAgent = ParentAgent> {
   create(spec: AnchorSpec): Promise<{ readonly agent: A; readonly dispose?: () => Promise<void> }>
   resume(spec: ResumeSpec): Promise<{ readonly agent: A; readonly dispose?: () => Promise<void> }>
+  get?(id: string): A | undefined
 }
 
 export interface RoleSpawnerOptions {
@@ -107,20 +108,12 @@ export class RoleSpawner<A extends ParentAgent = ParentAgent> {
       const setup = (anchorCtx: unknown): void => {
         this.options.composeFrom?.(anchorCtx, coordinator.ctx)
       }
-      const handle = persisted.has(role.name)
-        ? await this.agents.resume({ resumeSessionId: anchorId, agentOptions: coordinator.options, signal, setup })
-        : await this.agents.create({
-          sessionId: anchorId,
-          meta: {
-            cwd: role.cwd,
-            parentSession: coordinator.id,
-            origin: 'subagent',
-            delegationDepth: (coordinator.session?.header.delegationDepth ?? 0) + 1,
-          },
-          agentOptions: coordinator.options,
-          signal,
-          setup,
-        })
+      const handle = await this.acquireAnchor(anchorId, persisted.has(role.name), {
+        cwd: role.cwd,
+        parentSession: coordinator.id,
+        origin: 'subagent',
+        delegationDepth: (coordinator.session?.header.delegationDepth ?? 0) + 1,
+      }, coordinator.options, signal, setup)
       this.anchors.set(role.name, handle.agent)
       this.anchorHandles.set(role.name, handle)
       anchorIds.set(role.name, anchorId)
@@ -129,17 +122,46 @@ export class RoleSpawner<A extends ParentAgent = ParentAgent> {
 
     const tools = this.options.toolNames ?? ['swarm_handoff', 'ready_for_next', 'done_with_current']
     const children = await Promise.all(resolvedRoster.roles.map(async (role) => {
+      const existing = this.agents.get?.(role.name)
+      if (existing !== undefined) return { role: role.name, childId: role.name, messageId: 'already-live' }
       const anchor = this.anchors.get(role.name)
       if (anchor === undefined) throw new Error(`Anchor for ${role.name} is unavailable.`)
       const agentOptions = { ...(role.provider === undefined ? {} : { provider: role.provider }), ...(role.model === undefined ? {} : { model: role.model }) }
-      const started = await this.subagents.startContinuable({
-        provider: 'spawn', childId: role.name, label: `SwarmForge role: ${role.name}`,
-        request: { parent: anchor, prompt: [{ type: 'text', text: buildSeedPrompt(role.name, tools) }], ...(Object.keys(agentOptions).length === 0 ? {} : { agentOptions }) },
-        signal,
-      })
-      return { role: role.name, ...started }
+      try {
+        const started = await this.subagents.startContinuable({
+          provider: 'spawn', childId: role.name, label: `SwarmForge role: ${role.name}`,
+          request: { parent: anchor, prompt: [{ type: 'text', text: buildSeedPrompt(role.name, tools) }], ...(Object.keys(agentOptions).length === 0 ? {} : { agentOptions }) },
+          signal,
+        })
+        return { role: role.name, ...started }
+      } catch (error) {
+        if (this.agents.get?.(role.name) !== undefined) return { role: role.name, childId: role.name, messageId: 'already-live' }
+        throw error
+      }
     }))
     return { roster: resolvedRoster, children }
+  }
+
+  private async acquireAnchor(
+    anchorId: string,
+    persisted: boolean,
+    meta: AnchorSpec['meta'],
+    agentOptions: ParentAgent['options'],
+    signal: AbortSignal,
+    setup: (anchorCtx: unknown) => void,
+  ): Promise<{ readonly agent: A; readonly dispose?: () => Promise<void> }> {
+    const live = this.agents.get?.(anchorId)
+    if (live !== undefined) return { agent: live }
+    try {
+      if (persisted) {
+        return await this.agents.resume({ resumeSessionId: anchorId, agentOptions, signal, setup })
+      }
+      return await this.agents.create({ sessionId: anchorId, meta, agentOptions, signal, setup })
+    } catch (error) {
+      const recovered = this.agents.get?.(anchorId)
+      if (recovered !== undefined) return { agent: recovered }
+      throw error
+    }
   }
 
   async wake(role: string, text: string): Promise<void> {

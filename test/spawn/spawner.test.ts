@@ -109,6 +109,69 @@ describe('RoleSpawner', () => {
     expect(vi.mocked(agents.resume).mock.invocationCallOrder[1]).toBeLessThan(vi.mocked(subagents.startContinuable).mock.invocationCallOrder[0] ?? Infinity)
   })
 
+  it('shouldReuseLiveAnchorsWhenResumeFailsBecauseTheSessionIsAlreadyLive', async () => {
+    const { projectRoot, subagents, agents, parent } = await setup()
+    const specifierId = anchorIdFor(parent.id, 'specifier')
+    const coderId = anchorIdFor(parent.id, 'coder')
+    await mkdir(join(projectRoot, '.swarmforge'), { recursive: true })
+    await writeFile(join(projectRoot, '.swarmforge', 'anchors.tsv'), [
+      'role\tanchor-session',
+      `specifier\t${specifierId}`,
+      `coder\t${coderId}`,
+      '',
+    ].join('\n'), 'utf8')
+    const live = new Map<string, TestAgent>([
+      [specifierId, {
+        id: specifierId,
+        ctx: { name: specifierId },
+        options: parent.options,
+        session: { header: { delegationDepth: 3 } },
+      }],
+    ])
+    agents.get = (id) => live.get(id)
+    vi.mocked(agents.resume).mockImplementation(async (spec) => {
+      if (spec.resumeSessionId === specifierId) throw new Error(`cannot prepare session "${spec.resumeSessionId}" while it is live`)
+      return { agent: {
+        id: spec.resumeSessionId,
+        ctx: { name: spec.resumeSessionId },
+        options: parent.options,
+        session: { header: { delegationDepth: 3 } },
+      } }
+    })
+    const spawner = new RoleSpawner(subagents, agents, {
+      ensureWorktree: vi.fn(async (_root, name) => ({ path: join(projectRoot, '.worktrees', name), created: false })),
+      ensureRuntimeExcludes: vi.fn(async () => undefined),
+      installCommitMsgHook: vi.fn(async () => undefined),
+    })
+
+    const result = await spawner.swarmStart(projectRoot, parent, new AbortController().signal)
+
+    expect(result.roster.roles.map(({ name }) => name)).toEqual(['specifier', 'coder'])
+    expect(subagents.startContinuable).toHaveBeenCalled()
+  })
+
+  it('shouldSkipStartContinuableWhenRoleChildIsAlreadyLive', async () => {
+    const { projectRoot, subagents, agents, parent } = await setup()
+    agents.get = (id) => id === 'coder'
+      ? {
+          id: 'coder',
+          ctx: { name: 'coder' },
+          options: parent.options,
+          session: { header: { delegationDepth: 4 } },
+        }
+      : undefined
+    const spawner = new RoleSpawner(subagents, agents, {
+      ensureWorktree: vi.fn(async (_root, name) => ({ path: join(projectRoot, '.worktrees', name), created: false })),
+      ensureRuntimeExcludes: vi.fn(async () => undefined),
+      installCommitMsgHook: vi.fn(async () => undefined),
+    })
+
+    const result = await spawner.swarmStart(projectRoot, parent, new AbortController().signal)
+
+    expect(result.children.find((child) => child.role === 'coder')?.messageId).toBe('already-live')
+    expect(vi.mocked(subagents.startContinuable).mock.calls.map((call) => call[0].childId)).toEqual(['specifier'])
+  })
+
   it('shouldWakeRoleThroughItsLiveAnchorWithVerbatimText', async () => {
     const { projectRoot, subagents, agents, parent } = await setup()
     const spawner = new RoleSpawner(subagents, agents, {
