@@ -189,6 +189,7 @@ function agentAdapter(agents: AgentRegistry) {
   return {
     create: async (spec: import('./spawn/spawner.js').AgentClient<Agent> extends { create(value: infer S): unknown } ? S : never) => agents.create({ ...spec, sessionId: SessionId(spec.sessionId), meta: { ...spec.meta, parentSession: SessionId(spec.meta.parentSession) } }),
     resume: async (spec: import('./spawn/spawner.js').AgentClient<Agent> extends { resume(value: infer S): unknown } ? S : never) => agents.resume({ ...spec, resumeSessionId: SessionId(spec.resumeSessionId) }),
+    get: (id: string) => typeof agents.get === 'function' ? agents.get(SessionId(id)) : undefined,
   }
 }
 
