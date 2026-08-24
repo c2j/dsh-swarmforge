@@ -15,9 +15,7 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "dist/index.js",
-    "dist/index.d.ts",
-    "dist/client.js",
+    "dist",
     "cordis.patch.yml"
   ],
   "engines": {
