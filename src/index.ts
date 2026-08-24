@@ -82,6 +82,7 @@ export class SwarmForgeRuntime extends Service implements SwarmForgeToolRuntime 
     })
     this.serviceRoles = started.roster.roles.map(({ name }) => name)
     this.masterRoleName = started.roster.roles.find(({ worktree }) => worktree === 'master')?.name
+    await this.emitQueueSnapshot()
     return { roles: started.roster.roles.map(({ name }) => name) }
   }
 
@@ -91,12 +92,16 @@ export class SwarmForgeRuntime extends Service implements SwarmForgeToolRuntime 
     return result
   }
 
-  readyForNext(role: string): Promise<ReadyResult> {
-    return this.requireService().readyForNext(role)
+  async readyForNext(role: string): Promise<ReadyResult> {
+    const result = await this.requireService().readyForNext(role)
+    await this.emitQueueSnapshot()
+    return result
   }
 
-  doneWithCurrent(role: string): Promise<{ readonly file: string }> {
-    return this.requireService().doneWithCurrent(role)
+  async doneWithCurrent(role: string): Promise<{ readonly file: string }> {
+    const result = await this.requireService().doneWithCurrent(role)
+    await this.emitQueueSnapshot()
+    return result
   }
 
   async submitClarification(role: string, question: string): Promise<{ readonly clarificationId: string }> {

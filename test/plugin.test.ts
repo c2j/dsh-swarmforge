@@ -34,11 +34,18 @@ describe('swarmforge plugin', () => {
     })
 
     await ctx.plugin(plugin, { projectRoot } satisfies Config)
-    const parent = { id: 'lead-session' } as Agent
+    const append = vi.fn()
+    const parent = { id: 'lead-session', session: { header: {}, append } } as unknown as Agent
     const result = await ctx.swarmforge.start(parent, new AbortController().signal)
 
     expect(definitions.map(({ name }) => name)).toEqual(['swarm_start', 'swarm_handoff', 'ready_for_next', 'done_with_current', 'swarm_clarify'])
     expect(result.roles).toEqual(['lead', 'coder'])
+    expect(append).toHaveBeenCalledWith('swarm/queue', expect.objectContaining({
+      approvals: [],
+      clarifications: [],
+      tasks: [],
+      version: 2,
+    }))
     expect(startContinuable).toHaveBeenCalledTimes(2)
     expect(ctx.swarmforge.config.projectRoot).toBe(projectRoot)
     await ctx.fiber.dispose()
