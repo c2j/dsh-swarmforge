@@ -69,6 +69,11 @@ export interface SwarmStartResult {
   readonly children: readonly { readonly role: string; readonly childId: string; readonly messageId: string }[]
 }
 
+function isAlreadyStartedChild(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.includes('already exists') || message.includes('while it is live')
+}
+
 export function anchorIdFor(coordinatorId: string, role: string): string {
   return `swarmforge-anchor-${coordinatorId}-${role}`
 }
@@ -135,7 +140,9 @@ export class RoleSpawner<A extends ParentAgent = ParentAgent> {
         })
         return { role: role.name, ...started }
       } catch (error) {
-        if (this.agents.get?.(role.name) !== undefined) return { role: role.name, childId: role.name, messageId: 'already-live' }
+        if (this.agents.get?.(role.name) !== undefined || isAlreadyStartedChild(error)) {
+          return { role: role.name, childId: role.name, messageId: 'already-live' }
+        }
         throw error
       }
     }))

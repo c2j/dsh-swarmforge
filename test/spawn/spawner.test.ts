@@ -172,6 +172,24 @@ describe('RoleSpawner', () => {
     expect(vi.mocked(subagents.startContinuable).mock.calls.map((call) => call[0].childId)).toEqual(['specifier'])
   })
 
+  it('shouldTreatDuplicateChildErrorsAsAlreadyStarted', async () => {
+    const { projectRoot, subagents, agents, parent } = await setup()
+    vi.mocked(subagents.startContinuable).mockImplementation(async (spec) => {
+      if (spec.childId === 'coder') throw new Error('subagent "coder" already exists')
+      return { childId: spec.childId, messageId: 'message-id' }
+    })
+    const spawner = new RoleSpawner(subagents, agents, {
+      ensureWorktree: vi.fn(async (_root, name) => ({ path: join(projectRoot, '.worktrees', name), created: false })),
+      ensureRuntimeExcludes: vi.fn(async () => undefined),
+      installCommitMsgHook: vi.fn(async () => undefined),
+    })
+
+    const result = await spawner.swarmStart(projectRoot, parent, new AbortController().signal)
+
+    expect(result.children.map((child) => child.role)).toEqual(['specifier', 'coder'])
+    expect(result.children.find((child) => child.role === 'coder')?.messageId).toBe('already-live')
+  })
+
   it('shouldWakeRoleThroughItsLiveAnchorWithVerbatimText', async () => {
     const { projectRoot, subagents, agents, parent } = await setup()
     const spawner = new RoleSpawner(subagents, agents, {
